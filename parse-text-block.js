@@ -25,6 +25,48 @@ function getAlignmentShortForm(alignment) {
     return alignmentTable[alignment];
 }
 
+function parseSpeed(speedLine) {
+    let speeds = {}
+    let speedChunks = speedLine.split(',');
+    console.log(speedChunks);
+    for (let speedString of speedChunks) {
+         let speedType = speedString.trim().split(' ')[0].trim();
+         let speedUnit = speedString.trim().split(' ')[1].trim(); // eg. speed 40ft
+
+         if (speedType=='Speed') {
+             speedType='walk'
+         }
+         speeds[speedType] = speedUnit;
+    }
+    return speeds;
+}
+
+
+
+
+
+function parseStat(statLine) 
+{
+    return statLine.trim().split(' ')[1];
+}    
+
+function parseSaves(line) {
+    // get the actual throws:
+    let throws = line.trim().split(' ')[1];
+
+    // split throws by commna
+    let throwChunks = throws.trim().split(', ');
+
+    let saves = {};
+    for (let c of throwChunks) {
+        let stats = c.trim().split(' ')[0];
+        let modifier = c.trim().split(' ')[1];
+        for(let s of stats.split('/')) {
+            saves[s] = modifier;
+        }
+    }
+    return saves;
+}
 
 function parseStatBlock()
 {
@@ -56,7 +98,7 @@ function parseStatBlock()
     // MONSTER AC
     monster.ac = [
         {
-            ac: lines[4].split()[2], // "Armor Class X"
+            ac: lines[4].split(' ')[2], // "Armor Class X"
             from: [
             "natural armor"
             ]
@@ -64,31 +106,29 @@ function parseStatBlock()
     ]
 
     // HIT POINTS
-    let hp = lines[5].split()[2]
+    let hp = lines[5].split(' ')[2]
     monster.hp = {
         'average': hp, //"Hit Points X"
         'formula': Math.ceil(hp/6)
     }
 
     // SPEEDS
-    let speeds = {}
-    let speedChunks = lines[6].split(',');
-    for (let speedString of speedChunks) {
-         let speedType = speedString.split()[0];
-         let speedUnit = speedString.split()[1]; // eg. speed 40ft
-         speedString = speedString.subsring(0, speedString.length-2); // remove the 'ft'
-         if (speedType=='Speed') {
-             speedType='walk'
-         }
-         speed[speedType] = speedString;
+    monster.speed = parseSpeed(line[6])
+
+    // STATS
+    monster.stats = {
+        str: parseStat(lines[7]),
+        dex: parseStat(lines[8]),
+        con: parseStat(lines[9]),
+        int: parseStat(lines[10]),
+        wis: parseStat(lines[11]),
+        cha: parseStat(lines[12])
     }
-
-
-    monster.speed = {
-        "walk": speedString
-    }
-
     
+    // SAVES
+    monster.saves = {
+
+    }
     
 }
 
