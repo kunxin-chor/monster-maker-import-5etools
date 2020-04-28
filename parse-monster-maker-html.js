@@ -14,6 +14,10 @@ const alignmentTable = {
     'neutral':'N'
 }
 
+const possibleDamageTypes = [
+    'acid', 'bludgeoning', 'cold', 'fire', 'force', 'lightning', 'necrotic', 'piercing', 'poison', 'psychic', 'radiant', 'slashing', 'thunder'
+]
+
 // end constants
 
 function convertSize(sizeString) {
@@ -189,25 +193,33 @@ function getDamageComponents(actionString) {
             } else if (actionString[i] != " " && !isNaN(actionString[i]) && (haveParenthesis==false || (haveParenthesis && foundMatchingParenthesis))) {
                 buffer.push(actionString[i])
             } else if (actionString[i]==' ' && buffer.length > 0) {
-                console.log(buffer)
                 startChange = i + 1;
                 let damage = parseInt(buffer.reduce(function(current, fused){
                     return fused+=current;
                 }));
 
                 let damageType = getDamageType(actionString.substring(startChange, endChange));
+                
+                // if damaage type is not found
+                if (possibleDamageTypes.indexOf(damageType.trim().toLowerCase()) == -1) {
+                    damageType="";
+
+                }
 
                 results.push({
-                    start: startChange,
-                    end: endChange,
-                    changeTo: `${convertDamage(damage)} ${damageType} damage` 
+                    // start: startChange,
+                    // end: endChange,
+                    original: actionString.substring(startChange, endChange),
+                    changeTo: damageType !="" ? `${convertDamage(damage)} ${damageType} damage` :
+                                                 `${convertDamage(damage)} damage`
                 })
                 break;
 
             }
             i--;
         }
-        lastFoundIndex = actionString.substring(lastFoundIndex+"damage".length, actionString.length-1).indexOf('damage');
+        actionString =  actionString.substring(lastFoundIndex+"damage".length, actionString.length-1)
+        lastFoundIndex = actionString.indexOf('damage');
         console.log("next last found index="+lastFoundIndex);
    }
    return results;
