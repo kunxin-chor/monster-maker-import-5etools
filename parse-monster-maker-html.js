@@ -125,7 +125,7 @@ function parseAllActions(actionString) {
     let actions = $('.monster-action > p').map(function(action){
         $a = $(action);
         return {
-            name: $a.find('span').eq(0).text(),
+            name: $a.find('span').eq(0).text().replace('.',''),
             entry: parseAction( $a.find('span').eq(1).text())
         }
     })
