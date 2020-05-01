@@ -52,6 +52,22 @@ function getDescription(descriptor) {
     }
 }
 
+function parseSpeed(speedLine) {
+    let speeds = {}
+    let speedChunks = speedLine.split(',');
+    console.log(speedChunks);
+    for (let speedString of speedChunks) {
+         let speedType = speedString.trim().split(' ')[0].trim();
+         let speedUnit = speedString.trim().split(' ')[1].trim(); // eg. speed 40ft
+
+         if (speedType=='Speed') {
+             speedType='walk'
+         }
+         speeds[speedType] = speedUnit;
+    }
+    return speeds;
+}
+
 function parseSaves(line) {
     // split throws by commna
     let throwChunks = line.trim().split(', ');
@@ -102,7 +118,7 @@ function parseSenses(sensesLine) {
 }
 
 function getListings($m, listingClass) {
-    return $m.find(`.${listingClass} span`).eq(2).text().trim();
+    return $m.find(`.${listingClass} span`).eq(1).text().trim();
 }
 
 function parseAllActions(actionString) {
@@ -116,6 +132,27 @@ function parseAllActions(actionString) {
 }
 
 function parseAction(actionString) {
+    let attacks = getAttacks(actionString);
+    let damages = getDamageComponents(actionString);
+    // replace
+    for (let a of attacks) {
+        actionString = actionString.replace(a.original, a.converted);
+        if (a.type=='attack') {
+            actionString = actionString.replace('Hit:', '');
+        }
+    }
+
+    for (let d of damages) {
+        actionString = actionString.replace(d.original, d.converted);
+    }
+
+    // replace melee weapon attack and ranged weapon attack
+    actionString = actionString.replace('Melee Weapon Attack:', '{@atk mw}');
+    actionString = actionString.replace('Ranged Weapon Attack:', '{@rtk mw');
+    
+    
+
+    return actionString;
 
 }
 
@@ -127,12 +164,20 @@ function getAttacks(actionString) {
         if (w=='vs' || w=="vs.") {
             let a = {
                 original: `${words[i-1]} ${words[i]} ${words[i+1]}`,
-                replace_by: convertAttack(words[i-1], words[i+1])
+                converted: convertAttack(words[i-1], words[i+1])
             }
+            if (words[i+1].replace('.','').toLowerCase() != "ac") {
+                a.original = "DC " + a.original;
+                a.type="save";
+            } else{
+                a.type="attack";
+            }
+
             attacks.push(a);
         }
         
     }
+ 
     return attacks;
 }
 
@@ -143,9 +188,9 @@ function convertAttack(value, attackType) {
 
     let converted="";
     if (attackTypeToMatch.toLowerCase()=="ac") {
-        converted = `@{hit ${value}} to hit, `
+        converted = `{@hit ${value.replace('+','')}} to hit, `
     } else {
-        converted = `Make a @{dc ${value}} ${attackType} saving throw,`
+        converted = `The target must succeed on a {@dc ${value}} ${attackTypeToMatch} saving throw.`
     }
     return converted;
 
@@ -200,7 +245,7 @@ function getDamageComponents(actionString) {
 
                 let damageType = getDamageType(actionString.substring(startChange, endChange));
                 
-                // if damaage type is not found
+                // if damage type is not found
                 if (possibleDamageTypes.indexOf(damageType.trim().toLowerCase()) == -1) {
                     damageType="";
 
@@ -210,8 +255,8 @@ function getDamageComponents(actionString) {
                     // start: startChange,
                     // end: endChange,
                     original: actionString.substring(startChange, endChange),
-                    changeTo: damageType !="" ? `${convertDamage(damage)} ${damageType} damage` :
-                                                 `${convertDamage(damage)} damage`
+                    converted: damageType !="" ? `${convertDamage(damage)} ${damageType} ` :
+                                                 `${convertDamage(damage)} `
                 })
                 break;
 
@@ -232,11 +277,11 @@ function getDamageType(damageString) {
 }
 
 function convertDamage(damage) {
-   return `{@h}${damage} ({%damage ${getDamageDice(damage)}d6})`;
+   return `{@h}${damage} ({@damage ${getDamageDice(damage)}d6})`;
 }
 
 function getDamageDice(damage) {
-    return Math.ceil(damage*2/6);
+    return Math.ceil(damage/3.5);
 }
 
 function parseHTMLStatBlock(html) {
@@ -244,15 +289,15 @@ function parseHTMLStatBlock(html) {
 
     let monster = {
         name: getName($m),
-        source: "Gifflyglyph's Monster Maker",
+        source: "Giffyglpyh",
         page: 0,
     }
 
-    let descriptors = getDescription($m.find('.monster-description').trim());
+    let descriptors = getDescription($m.find('.monster-description').text().trim());
 
     monster.size = descriptors.size;
-    monster.type = descriptor.type;
-    monster.alignment = descriptor.alignment;
+    monster.type = descriptors.type;
+    monster.alignment = descriptors.alignment;
 
     monster.ac = [
         {
@@ -264,14 +309,14 @@ function parseHTMLStatBlock(html) {
     ]
 
     // MONSTER HP
-    let hp = parseInt($m.find('.monster-hp span').eq(1).text.trim());
+    let hp = parseInt($m.find('.monster-hp span').eq(1).text().trim());
     monster.hp = {
         'average': hp, //"Hit Points X"
-        'formula': Math.ceil(hp/6)
+        'formula': Math.ceil(hp/3.5) + "d6"
     }
 
     // MONSTER SPEED
-    monster.speed = parseSpeed($m.find('.monster-speed span').eq(1).text.trim());
+    monster.speed = parseSpeed($m.find('.monster-speed span').eq(1).text().trim());
 
     // MONSTER SCORES
     let abilities = $m.find('.monster-ability');
@@ -288,10 +333,10 @@ function parseHTMLStatBlock(html) {
     monster.cha = scores[5];
 
     // SAVES
-    monster.saves = parseSaves($m.find('.monster-saves span').eq(1).text().trim());
+    monster.save = parseSaves($m.find('.monster-saves span').eq(1).text().trim());
 
     // SKILLS
-    monster.skills = parseSaves($m.find('.monster-skills span').eq(1).text().trim());
+    monster.skill = parseSaves($m.find('.monster-skills span').eq(1).text().trim());
 
     // SENSES
     let senses = parseSenses($m.find('.monster-senses span').eq(1).text().trim());
@@ -319,11 +364,18 @@ function parseHTMLStatBlock(html) {
         return s.trim();
     })
 
-    monster.cr = getListings($m, 'monster-challenge').text().trim();
+    monster.cr = getListings($m, 'monster-challenge');
 
-    monster.vulnerable = getListings($m, 'monster-vulnerabilities').text().trim();
+    monster.vulnerable = getListings($m, 'monster-vulnerabilities').split(', ').map(function(s){
+        return s.trim();
+    });
+    
+    monster.resistance = getListings($m, 'monster-resistances').split(', ').map(function(s){
+        return s.trim();
+    });
 
-    monster.traits = $m.find('.monster-trait').map(function(t){
+    monster.trait = $m.find('.monster-trait').toArray().map(function(t){
+
        let spans = $(t).find('span');
        return {
            'name': spans[0].innerText,
@@ -333,14 +385,18 @@ function parseHTMLStatBlock(html) {
        }
     })
 
-    monster.actions = $m.find('monster-action').map(function(t){
+    monster.action = $m.find('.monster-action').toArray().map(function(t){
        let spans = $(t).find('span');
+       console.log(spans);
        return {
            'name': spans[0].innerText,
            'entries': [
-               spans[1].innerText
+               parseAction(spans[1].innerText)
            ]
        }
     })
+
+    console.log(monster)
+    return JSON.stringify(monster);
 
 }
